@@ -1,16 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AuthState, User, UserRole } from '../types';
-import { mockDb } from '../services/mockSupabase';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { AuthState, User, UserRole } from "../types";
+import { mockDb } from "../services/mockSupabase";
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check local storage for persisted session
-    const storedUser = localStorage.getItem('org_connect_user');
+    const storedUser = localStorage.getItem("org_connect_user");
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -22,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const loggedInUser = await mockDb.auth.signIn(email, role, password);
       setUser(loggedInUser);
-      localStorage.setItem('org_connect_user', JSON.stringify(loggedInUser));
+      localStorage.setItem("org_connect_user", JSON.stringify(loggedInUser));
     } finally {
       setLoading(false);
     }
@@ -30,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('org_connect_user');
+    localStorage.removeItem("org_connect_user");
   };
 
   return (
@@ -42,6 +44,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
