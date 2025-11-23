@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthState, User, UserRole } from "../types";
-import { mockDb } from "../services/mockSupabase";
+import { supabaseDb } from "@/services/supabaseDb";
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
@@ -19,10 +19,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoading(false);
   }, []);
 
-  const login = async (email: string, role: UserRole, password?: string) => {
+  const login = async (email: string, password?: string) => {
     setLoading(true);
     try {
-      const loggedInUser = await mockDb.auth.signIn(email, role, password);
+      const loggedInUser = await supabaseDb.auth.signIn(email, password);
+      console.log("Logged in user:", loggedInUser);
       setUser(loggedInUser);
       localStorage.setItem("org_connect_user", JSON.stringify(loggedInUser));
     } finally {

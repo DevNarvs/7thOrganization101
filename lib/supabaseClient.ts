@@ -21,17 +21,18 @@ const supabaseAnonKey =
   getEnv("VITE_SUPABASE_ANON_KEY") || getEnv("VITE_SUPABASE_KEY") || "";
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  // Log an explicit error so developers can fix their .env; avoid throwing to prevent uncaught exceptions in the browser
-  // which previously caused the whole app to crash at module-evaluation time.
-  // In Vite apps, ensure your env keys are prefixed with VITE_ and available in `import.meta.env`.
-  // Example .env: VITE_SUPABASE_URL=https://xyz.supabase.co
-  //              VITE_SUPABASE_ANON_KEY=public-anon-key
-  // or (existing project): VITE_SUPABASE_KEY=public-anon-key
-  // If you prefer a hard failure during development, replace console.error with `throw new Error(...)`.
+  const msg =
+    "Supabase URL and Anon Key are required environment variables.\nPlease set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or VITE_SUPABASE_KEY) in your .env file.\nExample:\nVITE_SUPABASE_URL=https://xyz.supabase.co\nVITE_SUPABASE_KEY=public-anon-key";
+
+  // Fail loudly in development so misconfiguration is obvious (prevents 400s from downstream requests).
+  // In production you may prefer to log and fail more gracefully.
   // eslint-disable-next-line no-console
-  console.error(
-    "Supabase URL and Anon Key are required environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
-  );
+  console.error(msg);
+  // Throw to stop execution and give a clear stack trace in dev.
+  throw new Error(msg);
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey as string);
+
+// Export a helper so other modules can check config without causing exceptions
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);

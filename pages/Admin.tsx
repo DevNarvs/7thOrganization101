@@ -130,6 +130,7 @@ const Admin: React.FC = () => {
     firstName: "",
     lastName: "",
     email: "",
+    password: "",
     phone: "",
     status: "Active" as "Active" | "Inactive",
   });
@@ -309,6 +310,7 @@ const Admin: React.FC = () => {
       firstName: "",
       lastName: "",
       email: "",
+      password: "",
       phone: "",
       status: "Active",
     });
@@ -341,6 +343,7 @@ const Admin: React.FC = () => {
         firstName: item.firstName,
         lastName: item.lastName,
         email: item.email,
+        password: item.password,
         phone: item.phone,
         status: item.status,
       });
@@ -408,7 +411,7 @@ const Admin: React.FC = () => {
         const original = programs.find((p) => p.id === editingId);
         await supabaseDb.programs.update({
           ...data,
-          id: editingId,
+          // id: editingId,
           organizerId: original?.organizerId || user?.organizationId,
           isApproved: original?.isApproved,
         } as Program);
@@ -435,7 +438,10 @@ const Admin: React.FC = () => {
           ...data,
           id: editingId,
         } as President);
-      else await supabaseDb.presidents.add(data);
+      else {
+        // await supabaseDb.presidents.add(data);
+        await supabaseDb.auth.createPresidentAccount(data);
+      }
     } else if (activeTab === "gallery") {
       const data = {
         title: formTitle,
@@ -2060,6 +2066,16 @@ const Admin: React.FC = () => {
                 value={formPresident.email}
                 onChange={(e) =>
                   setFormPresident({ ...formPresident, email: e.target.value })
+                }
+              />
+              <TextField
+                label="Password"
+                value={formPresident.password}
+                onChange={(e) =>
+                  setFormPresident({
+                    ...formPresident,
+                    password: e.target.value,
+                  })
                 }
               />
               <TextField

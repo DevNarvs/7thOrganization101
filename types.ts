@@ -1,6 +1,5 @@
-
 // Defines user roles within the system
-export type UserRole = 'admin' | 'president' | 'guest';
+export type UserRole = "admin" | "president" | "guest";
 
 // User profile structure
 export interface User {
@@ -34,7 +33,7 @@ export interface Program {
   title: string;
   description: string;
   date: string;
-  status: 'Upcoming' | 'Ongoing' | 'Completed' | 'Disapproved';
+  status: "Upcoming" | "Ongoing" | "Completed" | "Disapproved";
   imageUrl?: string;
   location: string;
   organizerId?: string;
@@ -49,7 +48,7 @@ export interface Registration {
   participantName: string;
   participantEmail: string;
   registeredAt: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: "Pending" | "Approved" | "Rejected";
   phone?: string;
   age?: number;
   affiliation?: string;
@@ -62,7 +61,7 @@ export interface President {
   lastName: string;
   email: string;
   phone: string;
-  status: 'Active' | 'Inactive';
+  status: "Active" | "Inactive";
   profileImage?: string;
 }
 
@@ -95,7 +94,7 @@ export interface AboutContent {
 export interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (email: string, role: UserRole, password?: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -115,7 +114,7 @@ export interface Testimonial {
   authorName: string;
   role: string; // e.g., "Member", "Volunteer", "Parent"
   content: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: "Pending" | "Approved" | "Rejected";
   dateSubmitted: string;
   avatarUrl?: string;
 }
@@ -128,7 +127,7 @@ export interface ContactMessage {
   subject: string;
   message: string;
   dateSent: string;
-  status: 'New' | 'Read';
+  status: "New" | "Read";
 }
 
 // Officers / Leadership

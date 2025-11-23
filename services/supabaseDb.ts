@@ -221,7 +221,10 @@ export const supabaseDb = {
   // --- PRESIDENTS ---
   presidents: {
     getAll: async (): Promise<President[]> => {
-      const { data, error } = await supabase.from("presidents").select("*");
+      const { data, error } = await supabase
+        .from("presidents")
+        .select("*")
+        .eq("isAdmin", false);
       return handleSupabaseResponse(data, error, "presidents");
     },
     add: async (item: Omit<President, "id">): Promise<President> => {
@@ -247,6 +250,26 @@ export const supabaseDb = {
 
   // --- ORGANIZATIONS ---
   organizations: {
+    getById: async (id: string): Promise<Organization | null> => {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("*")
+        .eq("id", id)
+        .single();
+      return handleSupabaseResponse(data, error, "organizations");
+    },
+    getLoginCredentials: async (
+      email: string,
+      password: string
+    ): Promise<Organization | null> => {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("*")
+        .eq("contact_email", email)
+        .eq("password", password)
+        .single();
+      return handleSupabaseResponse(data, error, "organizations");
+    },
     getAll: async (): Promise<Organization[]> => {
       const { data, error } = await supabase.from("organizations").select("*");
       return handleSupabaseResponse(data, error, "organizations");
@@ -421,55 +444,115 @@ export const supabaseDb = {
 
   // --- AUTHENTICATION ---
   auth: {
-    signIn: async (
-      email: string,
-      role: string,
-      password?: string
-    ): Promise<User> => {
-      if (!password) {
-        throw new Error("Password is required.");
+    /**
+     * Logs a user in, fetches their custom profile data from the 'presidents' table,
+     * finds their organization, and returns a consolidated User object.
+     */
+    signIn: async (email: string, password: string): Promise<User> => {
+      // --- STEP A: AUTHENTICATION ---
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+      if (authError) throw new Error(authError.message);
+      if (!authData.user) throw new Error("Login failed.");
+
+      const userUUID = authData.user.id;
+      let finalRole: "admin" | "president" | "unauthorized" = "unauthorized";
+      let displayName = authData.user.email || "User";
+      let organizationId: string | undefined = undefined;
+
+      // --- STEP B: IDENTIFICATION (President) ---
+      const { data: presidentProfile } = await supabase
+        .from("presidents")
+        .select("id, first_name, last_name, isAdmin")
+        .eq("user_id", userUUID) // The Auth-to-Profile link
+        .single();
+
+      if (presidentProfile) {
+        finalRole = presidentProfile.isAdmin ? "admin" : "president";
+
+        // 1. Get the Display Name
+        displayName = `${presidentProfile.first_name} ${presidentProfile.last_name}`;
+
+        // 2. Reverse Lookup for Organization ID (Org is linked to President)
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("id")
+          .eq("president_id", presidentProfile.id)
+          .single();
+
+        if (orgData) {
+          // Convert the BigInt ID to string for the frontend
+          organizationId = String(orgData.id);
+        }
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // --- STEP C: IDENTIFICATION (Admin) ---
+      const isAdmin = finalRole;
 
-      if (error) {
-        throw new Error(error.message);
+      if (isAdmin) {
+        finalRole = "admin";
+        // Prioritize the metadata name if available
+        displayName = authData.user.user_metadata?.full_name || "System Admin";
       }
 
-      if (!data.user) {
-        throw new Error("Sign-in failed. User data missing.");
-      }
-
-      // This metadata must be set in Supabase Auth to work
-      const userRole = data.user.app_metadata.user_role || "member";
-      const organizationId = data.user.user_metadata.organization_id;
-
-      if (userRole !== role) {
-        // Optional: Sign out immediately if role doesn't match
-        await supabase.auth.signOut();
+      // --- STEP D: FINAL RETURN ---
+      if (finalRole === "unauthorized") {
         throw new Error(
-          `User role mismatch. Expected ${role}, got ${userRole}`
+          "Login successful, but user is not assigned to a system role."
         );
       }
 
-      return {
-        id: data.user.id,
-        email: data.user.email || "",
-        name: data.user.user_metadata.full_name || "Authenticated User",
-        role: userRole,
+      const res = {
+        id: presidentProfile.id,
+        email: authData.user.email || "",
+        name: displayName,
+        role: finalRole,
         organizationId: organizationId,
+        uuid: userUUID,
       } as User;
+
+      console.log("Authenticated user:", res);
+      return res;
     },
 
+    /**
+     * 🛑 This is your Admin-Only "Sign Up" function 🛑
+     * It calls the secure Edge Function ('create-user') to bypass client-side session logout.
+     */
+    createPresidentAccount: async (formData: any) => {
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: formData,
+      });
+
+      if (error) {
+        // 🔍 THIS LOGS THE REAL REASON TO YOUR CONSOLE
+        // Check the 'context' or simply read the body if available
+        const errorBody = await error.context?.json().catch(() => "No body");
+        console.error("❌ Edge Function Failed:", error);
+        console.error("❌ Server Response:", errorBody);
+
+        // Throw the specific message if possible
+        throw new Error(error.message || "Failed to create account.");
+      }
+
+      if (data && data.error) {
+        throw new Error(data.error);
+      }
+
+      return data;
+    },
+
+    /**
+     * Signs the current user out.
+     */
     signOut: async () => {
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Supabase Sign Out Error:", error);
-        throw new Error("Failed to sign out.");
-      }
+      // Use the generic handler for consistent error throwing
+      handleSupabaseResponse(null, error, "auth/signOut");
     },
   },
 };

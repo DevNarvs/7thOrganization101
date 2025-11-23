@@ -587,62 +587,83 @@ export const mockDb = {
     },
   },
   auth: {
-    signIn: async (
-      email: string,
-      role: string,
-      password?: string
-    ): Promise<User> => {
+    signIn: async (email: string, password?: string): Promise<User> => {
       await delay(800);
 
       if (!password) {
         throw new Error("Password is required.");
       }
 
-      if (role === "admin") {
-        if (
-          email.toLowerCase() === "admin@orgconnect.com" &&
-          password === "admin123"
-        ) {
-          return {
-            id: "admin_1",
-            email,
-            name: "System Administrator",
-            role: "admin",
-            organizationId: undefined,
-          };
-        }
-        throw new Error("Invalid Admin credentials.");
+      // Admin quick credentials
+      if (
+        email.toLowerCase() === "admin@orgconnect.com" &&
+        password === "admin123"
+      ) {
+        return {
+          id: "admin_1",
+          email,
+          name: "System Administrator",
+          role: "admin",
+          organizationId: undefined,
+        };
       }
 
-      if (role === "president") {
-        const orgs = getFromStorage<Organization[]>(
-          "organizations",
-          initialOrgs
-        );
-        const matchingOrg = orgs.find(
-          (o) => o.contactEmail.toLowerCase() === email.toLowerCase()
-        );
+      // Try to find an organization with the given contact email
+      const orgs = getFromStorage<Organization[]>("organizations", initialOrgs);
+      const matchingOrg = orgs.find(
+        (o) => o.contactEmail.toLowerCase() === email.toLowerCase()
+      );
 
-        if (matchingOrg) {
-          if (matchingOrg.password && password !== matchingOrg.password) {
-            throw new Error("Invalid password.");
-          }
-
-          return {
-            id: `pres_${matchingOrg.id}`,
-            email: matchingOrg.contactEmail,
-            name: matchingOrg.presidentName,
-            role: "president",
-            organizationId: matchingOrg.id,
-          };
-        } else {
-          throw new Error(
-            "User not found. Please ensure your organization email is correct."
-          );
+      if (matchingOrg) {
+        if (matchingOrg.password && password !== matchingOrg.password) {
+          throw new Error("Invalid password.");
         }
+
+        return {
+          id: `pres_${matchingOrg.id}`,
+          email: matchingOrg.contactEmail,
+          name: matchingOrg.presidentName,
+          role: "president",
+          organizationId: matchingOrg.id,
+        };
       }
 
-      throw new Error("Invalid Role");
+      throw new Error("User not found. Please check your credentials.");
+    },
+    signUp: async (
+      email: string,
+      password: string,
+      role: string = "member",
+      fullName?: string,
+      organizationId?: string
+    ): Promise<User> => {
+      await delay(600);
+
+      if (!password) throw new Error("Password is required.");
+
+      const users = getFromStorage<any[]>("mock_users", []);
+      const exists = users.find(
+        (u) => u.email.toLowerCase() === email.toLowerCase()
+      );
+      if (exists) throw new Error("User already exists.");
+
+      const newUser = {
+        id: `user_${Date.now()}`,
+        email,
+        password,
+        role,
+        fullName,
+        organizationId,
+      };
+      saveToStorage("mock_users", [newUser, ...users]);
+
+      return {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.fullName || newUser.email,
+        role: newUser.role as any,
+        organizationId: newUser.organizationId,
+      };
     },
   },
 };

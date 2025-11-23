@@ -42,7 +42,7 @@ const Navbar: React.FC = () => {
                 O
               </div>
               <span className="font-bold text-xl tracking-tight text-gray-800">
-                OrgConnect
+                7th Brgy San Juan
               </span>
             </Link>
           </div>
