@@ -70,6 +70,9 @@ const Navbar: React.FC = () => {
             <Link to="/contact" className={isActive("/contact")}>
               Contact
             </Link>
+            <Link to="/about" className={isActive("/about")}>
+              About
+            </Link>
 
             {user ? (
               <div className="flex items-center gap-4 ml-4 border-l pl-4 border-gray-200">

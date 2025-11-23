@@ -17,8 +17,8 @@ const Home: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       const [cData, aData] = await Promise.all([
-        mockDb.carousel.getAll(),
-        mockDb.announcements.getAll(),
+        supabaseDb.carousel.getAll(),
+        supabaseDb.announcements.getAll(),
       ]);
       setCarouselItems(cData.sort((a, b) => a.order - b.order));
       setAnnouncements(aData);

@@ -1,5 +1,5 @@
 // supabaseDb.ts
-import { supabase } from "../lib/supabaseClient"; // Import the client we just created
+import { supabase } from "../lib/supabaseClient";
 import {
   Announcement,
   CarouselItem,
@@ -15,29 +15,76 @@ import {
   User,
 } from "../types";
 
-/**
- * --- REAL SUPABASE SERVICE ---
- * All mock functions are rewritten to use the actual Supabase client.
- * NOTE: Error handling is kept simple (throwing), but in a real app,
- * you should use try/catch blocks and log the 'error' object from Supabase.
- */
+// --- UTILITIES FOR CASE CONVERSION ---
 
-// A helper function to handle Supabase query errors
+// Convert DB snake_case to Frontend camelCase (and IDs to strings)
+const toCamel = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map((v) => toCamel(v));
+  } else if (obj !== null && obj.constructor === Object) {
+    return Object.keys(obj).reduce((result, key) => {
+      // Convert snake_case to camelCase
+      const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+
+      // Special handling: Convert numeric/BigInt IDs to string for Frontend
+      let value = obj[key];
+      if (key === "id" || key.endsWith("_id")) {
+        value = value ? String(value) : value;
+      }
+
+      return {
+        ...result,
+        [camelKey]: toCamel(value),
+      };
+    }, {} as any);
+  }
+  return obj;
+};
+
+// Convert Frontend camelCase to DB snake_case (and remove IDs for inserts)
+const toSnake = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map((v) => toSnake(v));
+  } else if (obj !== null && obj.constructor === Object) {
+    return Object.keys(obj).reduce((result, key) => {
+      // Convert camelCase to snake_case
+      const snakeKey = key.replace(
+        /[A-Z]/g,
+        (letter) => `_${letter.toLowerCase()}`
+      );
+
+      // Exclude 'id' from inserts if it is an empty string or undefined (Let DB auto-generate)
+      if (key === "id" && !obj[key]) return result;
+
+      return {
+        ...result,
+        [snakeKey]: obj[key],
+      };
+    }, {} as any);
+  }
+  return obj;
+};
+
+// Helper to handle response and apply conversion
 const handleSupabaseResponse = <T>(
-  data: T | null,
-  error: Error | null,
+  data: any | null,
+  error: any | null,
   tableName: string
 ): T => {
   if (error) {
     console.error(`Supabase Error [${tableName}]:`, error);
-    // Throw a generic error or the Supabase error message
-    throw new Error(`Failed to perform database operation on ${tableName}.`);
+    throw new Error(
+      error.message || `Failed to perform database operation on ${tableName}.`
+    );
   }
-  // Ensure we always return an array even if data is null for 'getAll' type calls
-  if (Array.isArray(data) || data === null) {
-    return (data || []) as T;
+
+  // Convert the data from DB format (snake_case) to App format (camelCase)
+  const formattedData = toCamel(data);
+
+  if (Array.isArray(formattedData) || formattedData === null) {
+    return (formattedData || []) as T;
   }
-  return data as T;
+  return formattedData as T;
 };
 
 export const supabaseDb = {
@@ -45,19 +92,18 @@ export const supabaseDb = {
   carousel: {
     getAll: async (): Promise<CarouselItem[]> => {
       const { data, error } = await supabase
-        .from("carousel") // Assuming your table name is 'carousel'
+        .from("carousel")
         .select("*")
-        .order("order", { ascending: true }); // Order by 'order' column
-
+        .order("order", { ascending: true });
       return handleSupabaseResponse(data, error, "carousel");
     },
-    // NOTE: Supabase typically uses an array of objects for bulk updates/upserts
     update: async (items: CarouselItem[]) => {
+      // Convert items to snake_case before sending
+      const dbItems = toSnake(items);
       const { data, error } = await supabase
         .from("carousel")
-        .upsert(items, { onConflict: "id" }) // Upsert based on the 'id' field
+        .upsert(dbItems, { onConflict: "id" })
         .select();
-
       handleSupabaseResponse(data, error, "carousel");
     },
   },
@@ -69,24 +115,21 @@ export const supabaseDb = {
         .from("announcements")
         .select("*")
         .order("date", { ascending: false });
-
       return handleSupabaseResponse(data, error, "announcements");
     },
     add: async (item: Omit<Announcement, "id">): Promise<Announcement> => {
       const { data, error } = await supabase
         .from("announcements")
-        .insert(item)
-        .select() // Return the inserted item with its generated ID
+        .insert(toSnake(item))
+        .select()
         .single();
-
       return handleSupabaseResponse(data, error, "announcements");
     },
     update: async (item: Announcement) => {
       const { error } = await supabase
         .from("announcements")
-        .update(item)
+        .update(toSnake(item))
         .eq("id", item.id);
-
       handleSupabaseResponse(null, error, "announcements");
     },
     delete: async (id: string) => {
@@ -94,7 +137,6 @@ export const supabaseDb = {
         .from("announcements")
         .delete()
         .eq("id", id);
-
       handleSupabaseResponse(null, error, "announcements");
     },
   },
@@ -102,29 +144,25 @@ export const supabaseDb = {
   // --- PROGRAMS ---
   programs: {
     getAll: async (): Promise<Program[]> => {
-      // Use .select('*, organizer:organizerId(*)') for join if you need the full organization data
       const { data, error } = await supabase
         .from("programs")
         .select("*")
         .order("date", { ascending: true });
-
       return handleSupabaseResponse(data, error, "programs");
     },
     add: async (item: Omit<Program, "id">): Promise<Program> => {
       const { data, error } = await supabase
         .from("programs")
-        .insert(item)
+        .insert(toSnake(item))
         .select()
         .single();
-
       return handleSupabaseResponse(data, error, "programs");
     },
     update: async (item: Program) => {
       const { error } = await supabase
         .from("programs")
-        .update(item)
+        .update(toSnake(item))
         .eq("id", item.id);
-
       handleSupabaseResponse(null, error, "programs");
     },
     delete: async (id: string) => {
@@ -139,39 +177,33 @@ export const supabaseDb = {
       const { data, error } = await supabase
         .from("registrations")
         .select("*")
-        .order("registeredAt", { ascending: false });
-
+        .order("registered_at", { ascending: false }); // Note: DB column is registered_at
       return handleSupabaseResponse(data, error, "registrations");
     },
     getByProgramId: async (programId: string): Promise<Registration[]> => {
       const { data, error } = await supabase
         .from("registrations")
         .select("*")
-        .eq("programId", programId)
-        .order("registeredAt", { ascending: false });
-
+        .eq("program_id", programId) // Note: DB column is program_id
+        .order("registered_at", { ascending: false });
       return handleSupabaseResponse(data, error, "registrations");
     },
     add: async (
       item: Omit<Registration, "id" | "registeredAt" | "status">
     ): Promise<Registration> => {
-      // Supabase is ideal for handling the "DUPLICATE CHECK" using a UNIQUE constraint on (program_id, participant_email)
-      // If a unique constraint is set in the database, the insert will fail automatically, which you can catch.
-      const registrationData = {
+      // Convert payload to snake_case
+      const payload = toSnake({
         ...item,
-        // Supabase will automatically set 'registeredAt' if the column has a 'default now()'
-        // We set a default status here, assuming the DB doesn't do it.
         status: "Pending",
-      };
+      });
 
       const { data, error } = await supabase
         .from("registrations")
-        .insert(registrationData)
+        .insert(payload)
         .select()
         .single();
 
       if (error && error.code === "23505") {
-        // PostgreSQL unique violation error code
         throw new Error("This email is already registered for this program.");
       }
 
@@ -180,9 +212,8 @@ export const supabaseDb = {
     update: async (item: Registration) => {
       const { error } = await supabase
         .from("registrations")
-        .update(item)
+        .update(toSnake(item))
         .eq("id", item.id);
-
       handleSupabaseResponse(null, error, "registrations");
     },
   },
@@ -196,7 +227,7 @@ export const supabaseDb = {
     add: async (item: Omit<President, "id">): Promise<President> => {
       const { data, error } = await supabase
         .from("presidents")
-        .insert(item)
+        .insert(toSnake(item))
         .select()
         .single();
       return handleSupabaseResponse(data, error, "presidents");
@@ -204,7 +235,7 @@ export const supabaseDb = {
     update: async (item: President) => {
       const { error } = await supabase
         .from("presidents")
-        .update(item)
+        .update(toSnake(item))
         .eq("id", item.id);
       handleSupabaseResponse(null, error, "presidents");
     },
@@ -223,7 +254,7 @@ export const supabaseDb = {
     add: async (item: Omit<Organization, "id">): Promise<Organization> => {
       const { data, error } = await supabase
         .from("organizations")
-        .insert(item)
+        .insert(toSnake(item))
         .select()
         .single();
       return handleSupabaseResponse(data, error, "organizations");
@@ -231,7 +262,7 @@ export const supabaseDb = {
     update: async (org: Organization) => {
       const { error } = await supabase
         .from("organizations")
-        .update(org)
+        .update(toSnake(org))
         .eq("id", org.id);
       handleSupabaseResponse(null, error, "organizations");
     },
@@ -248,17 +279,16 @@ export const supabaseDb = {
   about: {
     getAll: async (): Promise<AboutContent[]> => {
       const { data, error } = await supabase
-        .from("about_content") // Assuming 'about_content' is your table name
+        .from("about") // UPDATED TABLE NAME
         .select("*")
         .order("order", { ascending: true });
-      return handleSupabaseResponse(data, error, "about_content");
+      return handleSupabaseResponse(data, error, "about");
     },
-    // NOTE: This uses upsert to replace the entire set of sections based on 'id'
     update: async (sections: AboutContent[]) => {
       const { error } = await supabase
-        .from("about_content")
-        .upsert(sections, { onConflict: "id" });
-      handleSupabaseResponse(null, error, "about_content");
+        .from("about")
+        .upsert(toSnake(sections), { onConflict: "id" });
+      handleSupabaseResponse(null, error, "about");
     },
   },
 
@@ -266,25 +296,22 @@ export const supabaseDb = {
   gallery: {
     getAll: async (): Promise<GalleryItem[]> => {
       const { data, error } = await supabase
-        .from("gallery_items")
+        .from("gallery") // UPDATED TABLE NAME
         .select("*")
-        .order("dateUploaded", { ascending: false });
-      return handleSupabaseResponse(data, error, "gallery_items");
+        .order("date_uploaded", { ascending: false }); // DB column is date_uploaded
+      return handleSupabaseResponse(data, error, "gallery");
     },
     add: async (item: Omit<GalleryItem, "id">): Promise<GalleryItem> => {
       const { data, error } = await supabase
-        .from("gallery_items")
-        .insert(item)
+        .from("gallery")
+        .insert(toSnake(item))
         .select()
         .single();
-      return handleSupabaseResponse(data, error, "gallery_items");
+      return handleSupabaseResponse(data, error, "gallery");
     },
     delete: async (id: string) => {
-      const { error } = await supabase
-        .from("gallery_items")
-        .delete()
-        .eq("id", id);
-      handleSupabaseResponse(null, error, "gallery_items");
+      const { error } = await supabase.from("gallery").delete().eq("id", id);
+      handleSupabaseResponse(null, error, "gallery");
     },
   },
 
@@ -294,20 +321,19 @@ export const supabaseDb = {
       const { data, error } = await supabase
         .from("testimonials")
         .select("*")
-        .order("dateSubmitted", { ascending: false });
+        .order("date_submitted", { ascending: false }); // DB column is date_submitted
       return handleSupabaseResponse(data, error, "testimonials");
     },
     add: async (
       item: Omit<Testimonial, "id" | "status" | "dateSubmitted">
     ): Promise<Testimonial> => {
-      const testimonialData = {
+      const payload = toSnake({
         ...item,
         status: "Pending",
-        // dateSubmitted will ideally be set by the DB default value (now())
-      };
+      });
       const { data, error } = await supabase
         .from("testimonials")
-        .insert(testimonialData)
+        .insert(payload)
         .select()
         .single();
       return handleSupabaseResponse(data, error, "testimonials");
@@ -328,25 +354,28 @@ export const supabaseDb = {
     },
   },
 
-  // --- CONTACT MESSAGES ---
+  // --- CONTACT MESSAGES (This fixes your error) ---
   messages: {
     getAll: async (): Promise<ContactMessage[]> => {
       const { data, error } = await supabase
-        .from("contact_messages")
+        .from("contact_messages") // UPDATED TABLE NAME
         .select("*")
-        .order("dateSent", { ascending: false });
+        .order("date_sent", { ascending: false });
       return handleSupabaseResponse(data, error, "contact_messages");
     },
     add: async (
       item: Omit<ContactMessage, "id" | "dateSent" | "status">
     ): Promise<ContactMessage> => {
-      const messageData = {
+      // This will map keys: { name, email, subject, message } -> { name, email, subject, message }
+      // And handle default status
+      const payload = toSnake({
         ...item,
         status: "New",
-      };
+      });
+
       const { data, error } = await supabase
         .from("contact_messages")
-        .insert(messageData)
+        .insert(payload)
         .select()
         .single();
       return handleSupabaseResponse(data, error, "contact_messages");
@@ -372,7 +401,7 @@ export const supabaseDb = {
     add: async (item: Omit<Officer, "id">): Promise<Officer> => {
       const { data, error } = await supabase
         .from("officers")
-        .insert(item)
+        .insert(toSnake(item))
         .select()
         .single();
       return handleSupabaseResponse(data, error, "officers");
@@ -380,7 +409,7 @@ export const supabaseDb = {
     update: async (item: Officer) => {
       const { error } = await supabase
         .from("officers")
-        .update(item)
+        .update(toSnake(item))
         .eq("id", item.id);
       handleSupabaseResponse(null, error, "officers");
     },
@@ -390,12 +419,8 @@ export const supabaseDb = {
     },
   },
 
-  // --- AUTHENTICATION (Using Supabase Auth) ---
+  // --- AUTHENTICATION ---
   auth: {
-    // NOTE: This is a placeholder for a real Supabase Auth implementation.
-    // Supabase handles auth via methods like signInWithPassword, not direct DB queries.
-    // The previous mock logic for 'admin' and 'president' roles should be mapped to
-    // Supabase's RLS and User Metadata system, not custom sign-in logic.
     signIn: async (
       email: string,
       role: string,
@@ -418,17 +443,16 @@ export const supabaseDb = {
         throw new Error("Sign-in failed. User data missing.");
       }
 
-      // --- Custom Role/Metadata Logic (Requires Supabase Setup) ---
-      // In a real app, you'd check the user's 'app_metadata' or query a separate
-      // profile table to determine if they are an 'admin' or 'president' and
-      // get their organizationId.
-
-      // Placeholder logic:
-      const userRole = data.user.app_metadata.user_role || "member"; // Assuming you set this in Supabase
+      // This metadata must be set in Supabase Auth to work
+      const userRole = data.user.app_metadata.user_role || "member";
       const organizationId = data.user.user_metadata.organization_id;
 
       if (userRole !== role) {
-        throw new Error("User role mismatch.");
+        // Optional: Sign out immediately if role doesn't match
+        await supabase.auth.signOut();
+        throw new Error(
+          `User role mismatch. Expected ${role}, got ${userRole}`
+        );
       }
 
       return {

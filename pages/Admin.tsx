@@ -47,6 +47,7 @@ import {
   Calendar,
   MapPin,
 } from "lucide-react";
+import { supabaseDb } from "@/services/supabaseDb";
 
 type Tab =
   | "overview"
@@ -150,14 +151,14 @@ const Admin: React.FC = () => {
     if (activeTab === "overview") {
       setIsLoadingStats(true);
       Promise.all([
-        mockDb.programs.getAll().then(setPrograms),
-        mockDb.organizations.getAll().then(setOrganizations),
-        mockDb.registrations.getAll().then(setAllRegistrations),
-        mockDb.presidents.getAll().then(setPresidents),
-        mockDb.testimonials.getAll().then(setTestimonials),
-        mockDb.messages.getAll().then(setMessages),
-        mockDb.gallery.getAll().then(setGalleryItems),
-        mockDb.officers.getAll().then(setOfficers),
+        supabaseDb.programs.getAll().then(setPrograms),
+        supabaseDb.organizations.getAll().then(setOrganizations),
+        supabaseDb.registrations.getAll().then(setAllRegistrations),
+        supabaseDb.presidents.getAll().then(setPresidents),
+        supabaseDb.testimonials.getAll().then(setTestimonials),
+        supabaseDb.messages.getAll().then(setMessages),
+        supabaseDb.gallery.getAll().then(setGalleryItems),
+        supabaseDb.officers.getAll().then(setOfficers),
       ]).finally(() => setIsLoadingStats(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,7 +168,7 @@ const Admin: React.FC = () => {
   useEffect(() => {
     if (viewingItem && activeTab === "programs") {
       setIsLoadingRegs(true);
-      mockDb.registrations
+      supabaseDb.registrations
         .getByProgramId(viewingItem.id)
         .then(setProgramRegistrations)
         .finally(() => setIsLoadingRegs(false));
@@ -179,31 +180,31 @@ const Admin: React.FC = () => {
   const fetchData = async () => {
     switch (activeTab) {
       case "announcements":
-        setAnnouncements(await mockDb.announcements.getAll());
+        setAnnouncements(await supabaseDb.announcements.getAll());
         break;
       case "programs":
-        setPrograms(await mockDb.programs.getAll());
+        setPrograms(await supabaseDb.programs.getAll());
         break;
       case "about":
-        setAboutSections(await mockDb.about.getAll());
+        setAboutSections(await supabaseDb.about.getAll());
         break;
       case "organizations":
-        setOrganizations(await mockDb.organizations.getAll());
+        setOrganizations(await supabaseDb.organizations.getAll());
         break;
       case "presidents":
-        setPresidents(await mockDb.presidents.getAll());
+        setPresidents(await supabaseDb.presidents.getAll());
         break;
       case "gallery":
-        setGalleryItems(await mockDb.gallery.getAll());
+        setGalleryItems(await supabaseDb.gallery.getAll());
         break;
       case "testimonials":
-        setTestimonials(await mockDb.testimonials.getAll());
+        setTestimonials(await supabaseDb.testimonials.getAll());
         break;
       case "messages":
-        setMessages(await mockDb.messages.getAll());
+        setMessages(await supabaseDb.messages.getAll());
         break;
       case "officers":
-        setOfficers(await mockDb.officers.getAll());
+        setOfficers(await supabaseDb.officers.getAll());
         break;
     }
   };
@@ -385,11 +386,11 @@ const Admin: React.FC = () => {
         imageUrl: formImageUrl || undefined,
       };
       if (editingId)
-        await mockDb.announcements.update({
+        await supabaseDb.announcements.update({
           ...data,
           id: editingId,
         } as Announcement);
-      else await mockDb.announcements.add(data);
+      else await supabaseDb.announcements.add(data);
     } else if (activeTab === "programs") {
       const isApproved = user?.role === "admin";
       const data = {
@@ -405,14 +406,14 @@ const Admin: React.FC = () => {
       };
       if (editingId) {
         const original = programs.find((p) => p.id === editingId);
-        await mockDb.programs.update({
+        await supabaseDb.programs.update({
           ...data,
           id: editingId,
           organizerId: original?.organizerId || user?.organizationId,
           isApproved: original?.isApproved,
         } as Program);
       } else {
-        await mockDb.programs.add(data);
+        await supabaseDb.programs.add(data);
       }
     } else if (activeTab === "organizations") {
       const data = {
@@ -422,16 +423,19 @@ const Admin: React.FC = () => {
         ...formOrgDetails,
       };
       if (editingId)
-        await mockDb.organizations.update({
+        await supabaseDb.organizations.update({
           ...data,
           id: editingId,
         } as Organization);
-      else await mockDb.organizations.add(data);
+      else await supabaseDb.organizations.add(data);
     } else if (activeTab === "presidents") {
       const data = { ...formPresident };
       if (editingId)
-        await mockDb.presidents.update({ ...data, id: editingId } as President);
-      else await mockDb.presidents.add(data);
+        await supabaseDb.presidents.update({
+          ...data,
+          id: editingId,
+        } as President);
+      else await supabaseDb.presidents.add(data);
     } else if (activeTab === "gallery") {
       const data = {
         title: formTitle,
@@ -439,8 +443,8 @@ const Admin: React.FC = () => {
         dateUploaded: new Date().toISOString(),
       };
       if (editingId) {
-        /* Gallery update not implemented in mockDb but easy to add, for now assume add only or delete */
-      } else await mockDb.gallery.add(data);
+        /* Gallery update not implemented in supabaseDb but easy to add, for now assume add only or delete */
+      } else await supabaseDb.gallery.add(data);
     } else if (activeTab === "officers") {
       const data = {
         name: formOfficer.name,
@@ -450,15 +454,15 @@ const Admin: React.FC = () => {
         order: officers.length + 1,
       };
       if (editingId)
-        await mockDb.officers.update({ ...data, id: editingId } as Officer);
-      else await mockDb.officers.add(data);
+        await supabaseDb.officers.update({ ...data, id: editingId } as Officer);
+      else await supabaseDb.officers.add(data);
     } else if (activeTab === "about") {
       const updatedSections = aboutSections.map((s) =>
         s.id === editingId
           ? { ...s, sectionTitle: formTitle, content: formContent }
           : s
       );
-      await mockDb.about.update(updatedSections);
+      await supabaseDb.about.update(updatedSections);
     }
 
     setIsModalOpen(false);
@@ -467,20 +471,22 @@ const Admin: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
-    if (activeTab === "announcements") await mockDb.announcements.delete(id);
-    if (activeTab === "programs") await mockDb.programs.delete(id);
-    if (activeTab === "organizations") await mockDb.organizations.delete(id);
-    if (activeTab === "presidents") await mockDb.presidents.delete(id);
-    if (activeTab === "gallery") await mockDb.gallery.delete(id);
-    if (activeTab === "testimonials") await mockDb.testimonials.delete(id);
-    if (activeTab === "officers") await mockDb.officers.delete(id);
+    if (activeTab === "announcements")
+      await supabaseDb.announcements.delete(id);
+    if (activeTab === "programs") await supabaseDb.programs.delete(id);
+    if (activeTab === "organizations")
+      await supabaseDb.organizations.delete(id);
+    if (activeTab === "presidents") await supabaseDb.presidents.delete(id);
+    if (activeTab === "gallery") await supabaseDb.gallery.delete(id);
+    if (activeTab === "testimonials") await supabaseDb.testimonials.delete(id);
+    if (activeTab === "officers") await supabaseDb.officers.delete(id);
     fetchData();
   };
 
   const handleApprove = async (item: Program) => {
     const newStatus =
       item.status === "Disapproved" || !item.status ? "Upcoming" : item.status;
-    await mockDb.programs.update({
+    await supabaseDb.programs.update({
       ...item,
       isApproved: true,
       status: newStatus,
@@ -490,7 +496,7 @@ const Admin: React.FC = () => {
   };
 
   const handleDisapprove = async (item: Program) => {
-    await mockDb.programs.update({
+    await supabaseDb.programs.update({
       ...item,
       isApproved: false,
       status: "Disapproved",
@@ -503,13 +509,13 @@ const Admin: React.FC = () => {
     id: string,
     status: "Approved" | "Rejected"
   ) => {
-    await mockDb.testimonials.updateStatus(id, status);
+    await supabaseDb.testimonials.updateStatus(id, status);
     fetchData();
     if (viewingItem) setViewingItem(null);
   };
 
   const handleMarkMessageRead = async (id: string) => {
-    await mockDb.messages.markAsRead(id);
+    await supabaseDb.messages.markAsRead(id);
     fetchData();
     if (viewingItem) setViewingItem(null);
   };
@@ -1162,7 +1168,7 @@ const Admin: React.FC = () => {
                               <div className="flex justify-end gap-2">
                                 <button
                                   onClick={() => {
-                                    mockDb.registrations
+                                    supabaseDb.registrations
                                       .update({ ...reg, status: "Approved" })
                                       .then(() => {
                                         // Refresh local list
@@ -1182,7 +1188,7 @@ const Admin: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    mockDb.registrations
+                                    supabaseDb.registrations
                                       .update({ ...reg, status: "Rejected" })
                                       .then(() => {
                                         setProgramRegistrations((prev) =>
